@@ -1,0 +1,302 @@
+# PLAN-IT | Cursor Rules
+## FP&A Platform for KSA Community Schools (AEFE)
+
+---
+
+## Project Context
+
+**Project Name:** Plan-It (Pilot Cockpit)
+**Domain:** French Education System (AEFE) Financial Planning & Analysis
+**Primary Currency:** SAR (Operational) / EUR (Reporting)
+**Target Entity:** EFIR (KSA Community School - Non-Profit / Conventionné)
+
+**Strategic Goal:** Shift from "Passive Accounting" to "Strategic Piloting" using driver-based simulation engine.
+
+---
+
+## Architecture Principles
+
+### The "Block" Logic Flow (Dependency Graph)
+Data flows in one direction:
+```
+Enrollment (Block A) → Divisions/Classes (Block B) → DHG/Workforce (Block C) → Financials (Block D)
+```
+
+### Unified Python Architecture
+- **Zero-Copy Calculation:** Eliminate serialization latency between API and calculation engine
+- **Monolith Pattern:** FastAPI API + Polars Engine in same Python process
+- **In-Memory Cube:** Polars holds Plan Data in Apache Arrow format
+
+---
+
+## Tech Stack (LOCKED - Do Not Deviate)
+
+### Frontend Stack
+- **Package Manager:** pnpm 9.15.0+
+- **Framework:** Next.js 16.1.0 (React 19, Turbopack)
+- **Language:** TypeScript 5.7
+- **Styling:** Tailwind CSS 4.0 (Oxide Engine)
+- **Components:** Shadcn/UI (Radix Primitives)
+- **Icons:** Lucide React
+- **Navigation:** cmdk (Command K palette)
+- **Grid:** Glide Data Grid 6.0.6 (Canvas-based, Excel-like)
+- **State:** Zustand 5.0.3
+- **Data Fetching:** TanStack Query 5.62.0
+- **Validation:** Zod 3.24.1
+
+### Backend Stack
+- **Package Manager:** uv 0.5.0+ (Rust-based Python package manager)
+- **Runtime:** Python 3.14.2
+- **Web Framework:** FastAPI 0.115.6
+- **Server:** Uvicorn 0.34.0 (or Granian)
+- **Calculation Engine:** Polars 1.36.0 (In-Memory Cube)
+- **OLAP Accelerator:** DuckDB 1.1.3
+- **Validation:** Pydantic 2.10.0
+
+### Data Layer
+- **Database:** PostgreSQL 18.0
+- **Extensions:** ltree (Hierarchy), pg_trgm (Text search), uuid-ossp
+- **Caching:** Redis 8.0-M02
+
+---
+
+## Code Style & Conventions
+
+### TypeScript/React
+- Use TypeScript strictly (no `any` without justification)
+- Prefer functional components with hooks
+- Use Zod schemas for all API request/response validation
+- Follow Shadcn/UI component patterns
+- Use `text-xs` / `text-sm` typography for dense UI (Pigment aesthetic)
+- Prefer subtle borders, clean lines
+
+### Python/FastAPI
+- Use type hints everywhere (Python 3.14 supports enhanced typing)
+- Follow FastAPI best practices (Pydantic models, dependency injection)
+- Use Polars DataFrame operations (vectorized, zero-copy)
+- Prefer Polars expressions over loops
+- Use `uv` for dependency management (not pip)
+
+### Database
+- Use PostgreSQL 18 features (ltree for hierarchy, generated columns)
+- Always use UUIDs as primary keys (`gen_random_uuid()`)
+- Use `TIMESTAMPTZ` for all timestamps
+- Implement Row Level Security (RLS) for multi-tenant isolation
+- Use `GENERATED ALWAYS AS` for computed columns
+- Follow ltree path conventions: `root.{level}.{grade}` (e.g., `root.college.sixieme`)
+
+---
+
+## Domain-Specific Logic
+
+### Enrollment Module (Block A)
+- **Waterfall Logic:** `Opening + New Recruits - Departures = Closing`
+- Map "Academic Year" (Sept-Jun) to "Fiscal Year" (Jan-Dec)
+- **Division Calculation:** `ROUNDUP(Student_Count / Max_Cap)` where Max Cap is strict (28 for Collège, 35 for Lycée)
+
+### DHG Engine (Block C - Core Challenge)
+- **Theoretical DHG:** `Σ (Divisions_per_Grade × Legal_Hours_per_Grade)`
+- **H/E Ratio:** `Total DHG / Total Students` (must compare vs AEFE Benchmark)
+- **Service Divisors:** Certifiés = 18h, Agrégés = 15h, PE = 24h
+- **FTE Calculation:** `Total DHG / Service Divisor`
+- **Alert Threshold:** H/E > 1.45 (for Lycée) = "Inefficient Structure"
+
+### KSA-Specific Rules
+- **VAT Logic:** Saudi students = 0% VAT, Non-Saudi = 15% VAT
+- **Contract Types:** 
+  - Résident (EUR payment, Iqama + Medical)
+  - Local Family Visa (SAR payment, Ajeer, No Iqama cost) ← Strategic arbitrage target
+- **Cash Flow Tranches:** 3 tranches (Aug/Jan/Apr)
+- **Dual Currency:** SAR (operational), EUR (AEFE reporting)
+
+### Financial Module
+- **Staff Cost Ratio:** Target < 70% of revenue
+- **Cash Flow:** Track monthly cash in/out with minimum balance threshold (default: 500k SAR)
+- **Exchange Rates:** Support SPOT, BUDGET, AEFE_OFFICIAL rate types
+
+---
+
+## File Structure Conventions
+
+### Frontend (Next.js)
+```
+/app
+  /workspace
+    /enrollment        # Enrollment Workspace
+    /workforce         # DHG & Staffing Workspace
+    /financials        # P&L & Cash Flow Workspace
+/components
+  /ui                 # Shadcn components
+  /layout             # DashboardLayout, Sidebar, TopBar
+/lib
+  /api                # TanStack Query hooks
+  /stores             # Zustand stores
+  /validations        # Zod schemas
+```
+
+### Backend (FastAPI)
+```
+/app
+  /api
+    /v1
+      /enrollment
+      /workforce
+      /dhg
+      /financials
+  /core
+    /config
+    /security
+  /domain
+    /enrollment
+    /workforce
+    /dhg
+    /financials
+  /engine
+    /polars           # Calculation engine
+    /calc_dhg.py      # DHG calculation logic
+  /models             # Pydantic models
+  /db
+    /migrations       # Prisma migrations
+```
+
+---
+
+## UX Patterns
+
+### Workspace Architecture
+- **One Page per Module:** No reloads between modules
+- **Layout:** DashboardLayout with persistent Sidebar + Top Bar
+- **Top Bar:** Contains Global Scenario Selector (updates `scenarioId` in URL query params)
+- **Routes:** `/workspace/{module}` (enrollment, workforce, financials)
+- **Grid:** Takes 100% remaining screen height, sticky header, internal scrolling
+
+### Scenario Management
+- URL-based scenario context: `?scenarioId={uuid}`
+- Changing scenario updates all workspace data without page reload
+- Scenarios support hierarchy: BASE → Scenario A → Variant 1 (using ltree path)
+
+---
+
+## Database Conventions
+
+### Multi-Tenant Isolation
+- All tenant tables must include `school_id UUID REFERENCES schools(id)`
+- Enable RLS on all tenant tables
+- Use `current_setting('app.current_school_id')` for row filtering
+- Never expose data across school boundaries
+
+### Audit Trail
+- All critical tables should have `created_at`, `updated_at`, `created_by`, `updated_by`
+- Use `audit_logs` table for tracking changes (INSERT/UPDATE/DELETE)
+- Store old_values/new_values as JSONB
+
+### Hierarchy Queries (ltree)
+- Use `<@` operator for descendant queries: `WHERE path <@ 'root.college'`
+- Use `~` operator for pattern matching: `WHERE path ~ 'root.college.*'`
+- Always include path indexes (GIST for <@, BTREE for ~)
+
+---
+
+## Calculation Engine Guidelines
+
+### Polars Best Practices
+- Load data once into Polars DataFrame (Arrow format)
+- Use vectorized operations (no row-by-row loops)
+- Prefer `.with_columns()` for transformations
+- Use `.lazy()` for query optimization when chaining operations
+- Avoid materializing intermediate results unnecessarily
+
+### DHG Calculation Flow
+1. Load enrollment data → Calculate divisions per grade
+2. Load grade_levels → Get legal_hours_per_week
+3. Calculate total DHG: `divisions × legal_hours + group_hours + option_hours`
+4. Calculate H/E ratio: `total_dhg / total_students`
+5. Compare vs AEFE benchmarks (flag if exceeded)
+6. Calculate FTEs: `dhg_by_subject / service_divisor`
+7. Apply contract types and costs
+
+---
+
+## Testing & Quality
+
+### Frontend
+- Write tests for calculation logic (e.g., division calculation, DHG formulas)
+- Test scenario switching behavior
+- Validate Zod schemas match backend models
+
+### Backend
+- Unit tests for Polars calculations (use sample data)
+- Test DHG logic with edge cases (29 students = 2 divisions)
+- Validate H/E ratio calculations against AEFE benchmarks
+- Test multi-tenant isolation (RLS policies)
+
+---
+
+## Security & Permissions
+
+### User Roles
+- **SUPER_ADMIN:** Full access, all schools
+- **FINANCE_MANAGER:** Budget editing, high-level access
+- **BOARD_MEMBER:** Read-only, reports only
+- **PRINCIPAL:** Enrollment editing, DHG viewing
+- **HR_MANAGER:** Workforce management
+
+### Permission Structure
+- Module-level: `{module}: {read, write, delete}`
+- Scenario-level: `{create, approve, lock}`
+- Admin-level: `{manage_users, manage_schools, view_audit_logs}`
+
+---
+
+## Common Patterns to Follow
+
+### API Endpoints
+- Use RESTful conventions: `GET /api/v1/{resource}`, `POST /api/v1/{resource}`, etc.
+- Include `school_id` and `scenario_id` in query params for filtering
+- Return Pydantic models (automatic OpenAPI docs)
+- Use dependency injection for authentication/permissions
+
+### Error Handling
+- Use FastAPI `HTTPException` with appropriate status codes
+- Return structured error responses (Pydantic models)
+- Log errors with context (school_id, user_id, scenario_id)
+
+### Currency Handling
+- Always store amounts in base currency (SAR for operational, EUR for AEFE reporting)
+- Use `exchange_rates` table for conversions
+- Support multiple rate types: SPOT, BUDGET, AEFE_OFFICIAL
+- Store `exchange_rate_used` with converted amounts for audit
+
+---
+
+## Things to Avoid
+
+- ❌ Don't use `any` in TypeScript (use `unknown` if needed)
+- ❌ Don't bypass RLS policies
+- ❌ Don't hardcode currency conversion rates
+- ❌ Don't use loops for Polars DataFrame operations
+- ❌ Don't mix package managers (pnpm for frontend, uv for backend)
+- ❌ Don't deviate from locked tech stack versions
+- ❌ Don't create circular dependencies between modules (follow Block A→B→C→D flow)
+- ❌ Don't forget to update `updated_at` timestamps on edits
+- ❌ Don't expose internal calculation logic in API responses (return results only)
+
+---
+
+## Key Domain Terms
+
+- **DHG:** Dotation Horaire Globale (Total Weekly Hours)
+- **H/E Ratio:** Heures par Élève (Hours per Student)
+- **FTE:** Full Time Equivalent
+- **AEFE:** Agence pour l'Enseignement Français à l'Étranger
+- **Iqama:** Saudi residency permit (costly for sponsored employees)
+- **Ajeer:** Saudi labor platform for family visa holders (lower cost)
+- **GOSI:** General Organization for Social Insurance (Saudi)
+
+---
+
+## References
+
+- PRD: `docs/PRD-v5.2.md`
+- Database Schema: `docs/DATABASE_SCHEMA_V2.6.md`
+

@@ -1,0 +1,52 @@
+[project]
+name = "planit-backend"
+version = "0.1.0"
+description = "Plan-It: FP&A Platform for KSA Community Schools (AEFE)"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "polars",
+    "duckdb",
+    "pydantic",
+    "pydantic-settings",
+    "python-multipart",
+    "asyncpg",
+    "sqlalchemy[asyncio]",
+    "redis",
+    "python-jose[cryptography]",
+    "passlib[bcrypt]",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501", "B008"]  # B008: FastAPI uses Query() in default args by design
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,1 @@
+"""Financials domain module."""
